@@ -1,68 +1,94 @@
-import streamlit as st
 import os
+import streamlit as st
+import json
 from helpers import load_progress, get_all_users, get_user_team
 
-
 def show_leaderboard():
-    """Display leaderboard ranking by total workouts completed."""
     st.title("🏆 Leaderboard")
 
     users = get_all_users()
-    leaderboard_data = []
+    progress_data = {}
+    team_totals = {}
 
-    # --- Gather data per user ---
+    # Collect all users' progress
     for user in users:
-        progress = load_progress(user)
-        total_done = len(progress)
+        data = load_progress(user)
         team = get_user_team(user) or "(Individual)"
-
-        leaderboard_data.append({
-            "user": user,
+        completed = len(data)
+        progress_data[user] = {
+            "completed": completed,
             "team": team,
-            "total": total_done
-        })
+            "weeks": {f"Week {w}": 0 for w in range(1, 5)},
+        }
 
-    # --- Sort: total workouts descending ---
-    leaderboard_data.sort(key=lambda x: x["total"], reverse=True)
+        # Count per week
+        for key in data.keys():
+            try:
+                week_num = int(key.split()[1])
+                progress_data[user]["weeks"][f"Week {week_num}"] += 1
+            except Exception:
+                continue
 
-    if not leaderboard_data:
-        st.info("No progress data available yet.")
-        return
+        # Update team totals
+        team_totals.setdefault(team, 0)
+        team_totals[team] += completed
 
-    # --- Display leaderboard ---
-    st.markdown("### 🥇 Top Performers")
+    # --- Sort by total completions ---
+    leaderboard = sorted(progress_data.items(), key=lambda x: x[1]["completed"], reverse=True)
 
-    medal_emojis = ["🥇", "🥈", "🥉"]
-    current_user = st.session_state.get("username", "").lower()
+    st.subheader("🥇 Top Performers")
+    for i, (user, data) in enumerate(leaderboard):
+        medal = ["🥇", "🥈", "🥉"][i] if i < 3 else "🏅"
+        name = user
+        current_user = st.session_state.get("username", "").lower()
 
-    for idx, entry in enumerate(leaderboard_data, start=1):
-        medal = medal_emojis[idx - 1] if idx <= len(medal_emojis) else "🏋️"
-
-        # Highlight the logged-in user
-        if entry["user"].lower() == current_user:
+        # Highlight your own row
+        if user.lower() == current_user:
             st.markdown(
                 f"<div style='background-color:#222;padding:6px;border-radius:8px;'>"
-                f"⭐ **You ({entry['user']})** — {entry['total']} workouts completed "
-                f"({entry['team']})</div>",
+                f"⭐ **You ({user})** — {data['completed']} workouts completed ({data['team']})</div>",
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
-                f"{medal} **{entry['user']}** — {entry['total']} workouts completed "
-                f"({entry['team']})"
+                f"{medal} **{name}** — {data['completed']} workouts completed ({data['team']})"
             )
 
     # --- Team Totals ---
     st.divider()
-    st.markdown("### 👥 Team Totals")
-
-    team_totals = {}
-    for entry in leaderboard_data:
-        team = entry["team"]
-        team_totals[team] = team_totals.get(team, 0) + entry["total"]
-
-    sorted_teams = sorted(team_totals.items(), key=lambda x: x[1], reverse=True)
-
-    for idx, (team, total) in enumerate(sorted_teams, start=1):
-        medal = medal_emojis[idx - 1] if idx <= len(medal_emojis) else "💪"
+    st.subheader("👥 Team Totals")
+    for i, (team, total) in enumerate(sorted(team_totals.items(), key=lambda x: x[1], reverse=True)):
+        medal = ["🥇", "🥈", "🥉"][i] if i < 3 else "🏅"
         st.markdown(f"{medal} **{team}** — {total} workouts completed total")
+
+    # --- Detailed Weekly Breakdown ---
+    st.divider()
+    st.subheader("🔍 Weekly Progress")
+
+    st.caption("Each block = 1 workout. ✅ = completed, ⬜ = not yet done.")
+
+    weeks = ["Week 1", "Week 2", "Week 3", "Week 4"]
+    cols = ["Name"] + weeks + ["Total"]
+    table = []
+
+    for user, data in progress_data.items():
+        week_counts = [data["weeks"][w] for w in weeks]
+        row = [user]
+        total = data["completed"]
+        for count in week_counts:
+            filled = "✅" * count + "⬜" * (4 - count)
+            row.append(filled)
+        row.append(f"{total}/16")
+        table.append(row)
+
+    # Display table
+    st.write("| " + " | ".join(cols) + " |")
+    st.write("|" + " --- |" * len(cols))
+    for row in table:
+        st.write("| " + " | ".join(row) + " |")
+
+    # --- Team Completion Rate ---
+    total_possible = len(users) * 16
+    total_done = sum(d["completed"] for d in progress_data.values())
+    completion_rate = round((total_done / total_possible) * 100, 1) if total_possible else 0
+    st.markdown(f"🏁 **Team Completion Rate:** {completion_rate}%")
