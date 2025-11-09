@@ -2,6 +2,7 @@ import streamlit as st
 import os
 from helpers import load_progress, get_all_users, get_user_team
 
+
 def show_leaderboard():
     """Display leaderboard ranking by total workouts completed."""
     st.title("🏆 Leaderboard")
@@ -9,6 +10,7 @@ def show_leaderboard():
     users = get_all_users()
     leaderboard_data = []
 
+    # --- Gather data per user ---
     for user in users:
         progress = load_progress(user)
         total_done = len(progress)
@@ -28,7 +30,6 @@ def show_leaderboard():
         return
 
     # --- Display leaderboard ---
-        # --- Display leaderboard ---
     st.markdown("### 🥇 Top Performers")
 
     medal_emojis = ["🥇", "🥈", "🥉"]
@@ -36,6 +37,8 @@ def show_leaderboard():
 
     for idx, entry in enumerate(leaderboard_data, start=1):
         medal = medal_emojis[idx - 1] if idx <= len(medal_emojis) else "🏋️"
+
+        # Highlight the logged-in user
         if entry["user"].lower() == current_user:
             st.markdown(
                 f"<div style='background-color:#222;padding:6px;border-radius:8px;'>"
@@ -49,7 +52,7 @@ def show_leaderboard():
                 f"({entry['team']})"
             )
 
-    # --- Optional team summary ---
+    # --- Team Totals ---
     st.divider()
     st.markdown("### 👥 Team Totals")
 
@@ -59,6 +62,7 @@ def show_leaderboard():
         team_totals[team] = team_totals.get(team, 0) + entry["total"]
 
     sorted_teams = sorted(team_totals.items(), key=lambda x: x[1], reverse=True)
+
     for idx, (team, total) in enumerate(sorted_teams, start=1):
         medal = medal_emojis[idx - 1] if idx <= len(medal_emojis) else "💪"
         st.markdown(f"{medal} **{team}** — {total} workouts completed total")
