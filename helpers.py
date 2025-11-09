@@ -239,12 +239,22 @@ def generate_base_day(week_num: int, day_num: int):
     Returns a dict of {muscle_group: exercise_name} for a given week/day.
     This is the shared *template* across a team.
     """
-    from exercises import (
-        delts, chest, biceps, butt,
-        back_lats, back_mids, back_lower, back_combo,
-        abs_upper, abs_lower, abs_combo,
-        triceps, calf, thighs
-    )
+    try:
+        # ✅ Use relative import when running as a package (Streamlit Cloud)
+        from .exercises import (
+            delts, chest, biceps, butt,
+            back_lats, back_mids, back_lower, back_combo,
+            abs_upper, abs_lower, abs_combo,
+            triceps, calf, thighs
+        )
+    except ImportError:
+        # ✅ Fallback for local runs (python helpers.py)
+        from exercises import (
+            delts, chest, biceps, butt,
+            back_lats, back_mids, back_lower, back_combo,
+            abs_upper, abs_lower, abs_combo,
+            triceps, calf, thighs
+        )
 
     if day_num == 1:
         return {
@@ -283,7 +293,6 @@ def generate_base_day(week_num: int, day_num: int):
             "Thighs":    pick_unique_exercise_name("Thighs", thighs),
         }
     return {}
-
 
 # =========================
 # User-specific formatting
