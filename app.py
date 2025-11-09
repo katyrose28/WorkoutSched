@@ -80,7 +80,7 @@ if view_mode == "Daily Workout":
                 st.rerun()
         else:
         # Only show the button if not done
-        if st.button("🎉 I Did It!"):
+          if st.button("🎉 I Did It!"):
             mark_workout_done(week, day)
             st.session_state[f"done_{week}_{day}"] = True
             st.success("✅ Workout complete! Great job 💪")
