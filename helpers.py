@@ -356,3 +356,26 @@ def unmark_workout_done(user, week, day):
 def check_workout_done(user, week, day):
     progress = load_progress(user)
     return f"Week {week} Day {day}" in progress
+
+USER_SCHEDULES_DIR = "user_schedules"
+
+def load_user_schedule(username):
+    """Load a user's saved workout schedule or return an empty one."""
+    if not os.path.exists(USER_SCHEDULES_DIR):
+        os.makedirs(USER_SCHEDULES_DIR)
+    file_path = os.path.join(USER_SCHEDULES_DIR, f"{username}_schedule.json")
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+def save_user_schedule(username, schedule):
+    """Save the workout schedule for a specific user."""
+    if not os.path.exists(USER_SCHEDULES_DIR):
+        os.makedirs(USER_SCHEDULES_DIR)
+    file_path = os.path.join(USER_SCHEDULES_DIR, f"{username}_schedule.json")
+    with open(file_path, "w") as f:
+        json.dump(schedule, f, indent=4)
