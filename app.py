@@ -58,12 +58,13 @@ if view_mode == "Daily Workout":
         st.write(f"**{group}:** {text}")
 
     # 🎯 Mark workout completion
-    if st.button("🎉 I Did It!"):
-        mark_workout_done(week, day)
-        st.success("Awesome job — workout logged!")
-
     if check_workout_done(week, day):
-        st.info("✅ You've already completed this workout!")
+    st.success("✅ Workout complete! Great job 💪")
+    else:
+      if st.button("🎉 I Did It!"):
+        mark_workout_done(week, day)
+        st.session_state[f"done_{week}_{day}"] = True
+        st.success("✅ Workout complete! Great job 💪")
 
     # 🏋️ Update weights (Week 1 only)
     if week == 1:
