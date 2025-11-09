@@ -38,7 +38,7 @@ elif view_mode == "Progress Tracker":
     show_progress_tracker(username)
 
 elif view_mode == "Leaderboard":
-    show_leaderboard()
+    show_leaderboard(username)
 
 else:
     st.error("Unknown view selected. Please reload the page.")
