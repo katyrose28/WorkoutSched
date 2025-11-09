@@ -7,9 +7,12 @@ from datetime import datetime
 USER_DIR = "user_data"
 os.makedirs(USER_DIR, exist_ok=True)
 
-# --- Generic User File Helpers ---
+# --- Shared Plans File (for Workout Buddies) ---
+SHARED_PLAN_FILE = "shared_plans.json"
+
+# --- Generic File Helpers ---
 def get_user_file(user, file_type):
-    """Return a user-specific JSON path (e.g., katyrose_progress.json)."""
+    """Return a user-specific JSON path (e.g., katy_progress.json)."""
     filename = f"{user}_{file_type}.json"
     return os.path.join(USER_DIR, filename)
 
@@ -28,6 +31,31 @@ def save_user_data(user, file_type, data):
     """Save JSON data for a given user and file type."""
     with open(get_user_file(user, file_type), "w") as f:
         json.dump(data, f, indent=4)
+
+# --- Shared Plan Helpers ---
+def load_shared_plans():
+    if os.path.exists(SHARED_PLAN_FILE):
+        with open(SHARED_PLAN_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+def save_shared_plans(data):
+    with open(SHARED_PLAN_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+def get_shared_plan(owner, week, day):
+    plans = load_shared_plans()
+    key = f"{owner}_week{week}_day{day}"
+    return plans.get(key)
+
+def set_shared_plan(owner, week, day, plan):
+    plans = load_shared_plans()
+    key = f"{owner}_week{week}_day{day}"
+    plans[key] = plan
+    save_shared_plans(plans)
 
 # --- Weights Management ---
 def load_weights(user):
@@ -93,8 +121,6 @@ def pick_unique_exercise(group_name, exercise_list, week_num):
 # --- Weight Display Adjustments per Phase ---
 def adjust_weight_display(exercise_tuple, week_num):
     exercise, weight = exercise_tuple
-    # We don’t have the user here, so no per-user weights in generation
-    from helpers import load_weights
     updated_weights = load_weights("default")
     if exercise in updated_weights:
         try:
