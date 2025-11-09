@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.dirname(__file__))
 import streamlit as st
 from utils.login import login_user
 from views.daily_workout import show_daily_workout
