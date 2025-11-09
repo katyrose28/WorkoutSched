@@ -133,12 +133,23 @@ def set_shared_base_day(team, week, day, base_day):
 # =========================
 
 def get_all_exercises():
-    from exercises import (
-        delts, chest, biceps, butt,
-        back_lats, back_mids, back_lower, back_combo,
-        abs_upper, abs_lower, abs_combo,
-        triceps, calf, thighs
-    )
+    try:
+        # ✅ Streamlit Cloud (package context)
+        from .exercises import (
+            delts, chest, biceps, butt,
+            back_lats, back_mids, back_lower, back_combo,
+            abs_upper, abs_lower, abs_combo,
+            triceps, calf, thighs
+        )
+    except ImportError:
+        # ✅ Local debugging (python helpers.py)
+        from exercises import (
+            delts, chest, biceps, butt,
+            back_lats, back_mids, back_lower, back_combo,
+            abs_upper, abs_lower, abs_combo,
+            triceps, calf, thighs
+        )
+
     groups = [
         delts, chest, biceps, butt,
         back_lats, back_mids, back_lower, back_combo,
@@ -150,7 +161,6 @@ def get_all_exercises():
         for name, weight in group:
             all_ex[name] = weight
     return all_ex
-
 
 def get_base_weight(exercise_name):
     all_ex = get_all_exercises()
