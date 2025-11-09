@@ -297,34 +297,25 @@ def format_exercise_for_user(exercise_name, week_num, user):
     user_weights = load_weights(user)
     weight = user_weights.get(exercise_name, base)
 
-    # --- Non-numeric or missing weight (e.g. bands, cables, or undefined) ---
+    # Handle None or unknown weights gracefully
     if weight is None:
-        return f"{exercise_name} — Bodyweight"
+        return f"{exercise_name} — (no weight assigned)"
 
+    # Handle non-numeric (e.g., bands, cables, ankle weights)
     if isinstance(weight, str):
-        return f"{exercise_name} — {weight.capitalize()}"
+        return f"{exercise_name} — {weight}"
 
-    # --- Bodyweight exercise ---
+    # Handle bodyweight exercises (0 weight)
     if isinstance(weight, (int, float)) and weight == 0:
         return f"{exercise_name} — Bodyweight"
 
-    # --- Apply phase logic ---
+    # Normal numeric weights with phase logic
     if week_num == 1:
         return f"{exercise_name} — {weight} lbs, try {weight + 5} lbs"
     elif week_num == 4:
         return f"{exercise_name} — {round(weight / 2, 1)} lbs (deload)"
     else:
         return f"{exercise_name} — {weight} lbs"
-
-
-def build_user_day_from_base(base_day, week_num, user):
-    """
-    Given {group: exercise_name}, return {group: formatted_text} for that user.
-    """
-    return {
-        group: format_exercise_for_user(ex_name, week_num, user)
-        for group, ex_name in base_day.items()
-    }
 
 
 # =========================
