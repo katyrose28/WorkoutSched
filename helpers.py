@@ -311,7 +311,12 @@ def generate_base_day(week_num: int, day_num: int):
 def format_exercise_for_user(exercise_name, week_num, user):
     """
     Convert exercise name into text with proper weight for this user + phase.
+    Safe against double-formatting (won't add '(no weight assigned)' twice).
     """
+    # 🧠 If it’s already formatted (contains "lbs", "Bodyweight", or "no weight"), just return it
+    if any(x in exercise_name for x in ["lbs", "Bodyweight", "no weight assigned"]):
+        return exercise_name
+
     base = get_base_weight(exercise_name)
     user_weights = load_weights(user)
     weight = user_weights.get(exercise_name, base)
@@ -335,7 +340,6 @@ def format_exercise_for_user(exercise_name, week_num, user):
         return f"{exercise_name} — {round(weight / 2, 1)} lbs (deload)"
     else:
         return f"{exercise_name} — {weight} lbs"
-
 
 # =========================
 # Progress Tracking (per user)
