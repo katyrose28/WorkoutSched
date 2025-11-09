@@ -322,6 +322,15 @@ def format_exercise_for_user(exercise_name, week_num, user):
 # Progress Tracking (per user)
 # =========================
 
+def build_user_day_from_base(base_day, week_num, user):
+    """
+    Given {group: exercise_name}, return {group: formatted_text} for that user.
+    """
+    return {
+        group: format_exercise_for_user(ex_name, week_num, user)
+        for group, ex_name in base_day.items()
+    }
+
 def load_progress(user):
     return load_user_data(user, "progress")
 
