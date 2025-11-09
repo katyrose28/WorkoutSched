@@ -59,9 +59,12 @@ if view_mode == "Daily Workout":
     for group, text in st.session_state.day_plan.items():
         st.write(f"**{group}:** {text}")
 
-        # --- Workout Completion with Undo Option ---
+    # --- Workout Completion with Undo Option ---
     if check_workout_done(week, day):
         st.success("✅ Workout complete! Great job 💪")
+
+        # Disable the "I Did It!" button when done
+        st.button("🎉 I Did It!", disabled=True)
 
         # Add a small undo button
         if st.button("↩️ Undo Completion"):
@@ -75,11 +78,13 @@ if view_mode == "Daily Workout":
                 st.session_state[f"done_{week}_{day}"] = False
                 st.warning("Workout unmarked. You can mark it complete again anytime.")
                 st.rerun()
-    else:
+        else:
+        # Only show the button if not done
         if st.button("🎉 I Did It!"):
             mark_workout_done(week, day)
             st.session_state[f"done_{week}_{day}"] = True
             st.success("✅ Workout complete! Great job 💪")
+
 
 
     # --- Weekly Progress Badge ---
