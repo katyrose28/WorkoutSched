@@ -78,14 +78,13 @@ if view_mode == "Daily Workout":
                 st.session_state[f"done_{week}_{day}"] = False
                 st.warning("Workout unmarked. You can mark it complete again anytime.")
                 st.rerun()
-        else:
+
+    else:
         # Only show the button if not done
-          if st.button("🎉 I Did It!"):
+        if st.button("🎉 I Did It!"):
             mark_workout_done(week, day)
             st.session_state[f"done_{week}_{day}"] = True
             st.success("✅ Workout complete! Great job 💪")
-
-
 
     # --- Weekly Progress Badge ---
     progress = load_progress()
