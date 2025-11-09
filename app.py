@@ -2,6 +2,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import time
 import json
+import os
 from helpers import (
     load_weights, update_weight, generate_base_day, build_user_day_from_base,
     mark_workout_done, check_workout_done, unmark_workout_done,
@@ -86,22 +87,24 @@ if view_mode == "Daily Workout":
     st.caption(f"Day {day}")
     st.write(f"👋 Welcome, {username.title()} — ready to train?")
 
-    # --- 🕒 Global Rest Timer ---
+    # --- 🕒 Digital Rest Timer ---
     st.markdown("### 🕒 Rest Timer")
-    duration = st.slider("Select rest duration (seconds)", 30, 180, 60, step=30)
+    rest_mins = st.number_input("Minutes", min_value=0, max_value=3, value=1, step=1)
+    rest_secs = st.number_input("Seconds", min_value=0, max_value=59, value=0, step=15)
+    total_rest = rest_mins * 60 + rest_secs
 
     if "timer_running" not in st.session_state:
         st.session_state.timer_running = False
     if "timer_end_time" not in st.session_state:
         st.session_state.timer_end_time = None
 
-    col1, col2 = st.columns(2)
-    with col1:
+    c1, c2 = st.columns(2)
+    with c1:
         if st.button("▶️ Start Rest Timer"):
             st.session_state.timer_running = True
-            st.session_state.timer_end_time = time.time() + duration
+            st.session_state.timer_end_time = time.time() + total_rest
             st.rerun()
-    with col2:
+    with c2:
         if st.session_state.timer_running:
             if st.button("⏹ Cancel Timer"):
                 st.session_state.timer_running = False
@@ -113,7 +116,7 @@ if view_mode == "Daily Workout":
         if remaining > 0:
             mins, secs = divmod(remaining, 60)
             st.markdown(
-                f"<h2 style='text-align:center; color:deepskyblue;'>⏳ {mins:02d}:{secs:02d}</h2>",
+                f"<h1 style='text-align:center; color:#00BFFF;'>⏳ {mins:02d}:{secs:02d}</h1>",
                 unsafe_allow_html=True,
             )
             time.sleep(1)
@@ -125,14 +128,71 @@ if view_mode == "Daily Workout":
 
     # --- Today's Workout ---
     st.write("### Today's Workout")
+
+    # Track set progress per user/day in persistent file
+    SET_PROGRESS_DIR = "user_data"
+
+    def get_set_progress_file(user):
+        return os.path.join(SET_PROGRESS_DIR, f"{user}_setprogress.json")
+
+    def load_set_progress(user):
+        path = get_set_progress_file(user)
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def save_set_progress(user, data):
+        path = get_set_progress_file(user)
+        with open(path, "w") as f:
+            json.dump(data, f, indent=4)
+
+    # Load or initialize progress
+    set_progress = load_set_progress(username)
+    progress_key = f"week{week}_day{day}"
+    if progress_key not in set_progress:
+        set_progress[progress_key] = {}
+
+    total_sets = 0
+    total_done = 0
+
     for group, text in st.session_state.day_plan.items():
+        exercise_name = text.split("—")[0].strip()
         st.write(f"**{group}:** {text}")
+
+        # Initialize exercise sets if missing
+        if exercise_name not in set_progress[progress_key]:
+            set_progress[progress_key][exercise_name] = [False, False, False]
+
+        cols = st.columns(3)
+        for i in range(3):
+            with cols[i]:
+                key = f"{exercise_name}_set{i+1}_{week}_{day}"
+                done = st.checkbox(
+                    f"Set {i+1}",
+                    value=set_progress[progress_key][exercise_name][i],
+                    key=key
+                )
+                set_progress[progress_key][exercise_name][i] = done
+
+        done_count = sum(set_progress[progress_key][exercise_name])
+        total_sets += 3
+        total_done += done_count
+        st.caption(f"Sets complete: {done_count}/3 ✅")
+        st.markdown("---")
+
+    # Save after rendering
+    save_set_progress(username, set_progress)
+
+    st.markdown(f"### 🔥 Overall Progress: {total_done}/{total_sets} sets complete!")
 
     # --- Workout Completion ---
     if check_workout_done(username, week, day):
         st.success("✅ Workout complete! Great job 💪")
         st.button("🎉 I Did It!", disabled=True)
-
         if st.button("↩️ Undo Completion"):
             unmark_workout_done(username, week, day)
             st.warning("Workout unmarked. You can mark it complete again anytime.")
@@ -212,7 +272,6 @@ elif view_mode == "Progress Tracker":
     st.markdown("### 💪 Weight Progress Over Time")
     weight_history = load_weight_history(username)
 
-    # Collect all exercises
     all_exercises = set()
     for group in [
         delts, chest, biceps, butt, back_lats, back_mids, back_lower,
@@ -226,24 +285,19 @@ elif view_mode == "Progress Tracker":
 
     if exercise_names:
         selected = st.selectbox("Choose an exercise to track", exercise_names)
-
         if selected in weight_history and len(weight_history[selected]) > 1:
             dates = [entry["date"] for entry in weight_history[selected]]
             weights = [entry["weight"] for entry in weight_history[selected]]
-
             fig, ax = plt.subplots(figsize=(6, 3))
             ax.plot(dates, weights, marker="o", linewidth=2, color="deepskyblue")
-
             trend = "🔺" if weights[-1] > weights[-2] else "🔻"
             ax.set_title(f"{selected} Progress Over Time {trend}")
             ax.set_xlabel("Date")
             ax.set_ylabel("Weight (lbs)")
             plt.xticks(rotation=30, ha="right")
             st.pyplot(fig)
-
             pr = max(weights)
             st.success(f"🏆 Personal Record for **{selected}: {pr} lbs**")
-
         elif selected in weight_history:
             st.info(f"Only one entry for **{selected}** so far — update again to see progress!")
         else:
@@ -252,21 +306,17 @@ elif view_mode == "Progress Tracker":
         st.info("No exercises found — complete a workout to start tracking!")
 
     st.markdown("---")
-
     progress = load_progress(username)
     if progress:
         st.markdown("### 🏁 Weekly Progress Overview")
-
         week_counts = {}
         for key in progress.keys():
             week_num = int(key.split()[1])
             week_counts[week_num] = week_counts.get(week_num, 0) + 1
-
         for week_num in range(1, 5):
             completed = week_counts.get(week_num, 0)
             pct = completed / 4
             st.progress(pct)
             st.write(f"**Week {week_num}:** {completed}/4 workouts")
-
     else:
         st.info("No workouts logged yet. Go smash one! 💪")
