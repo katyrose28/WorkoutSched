@@ -26,13 +26,13 @@ from exercises import (
 )
 
 # =========================
-# Streamlit Page Setup
+# Page Setup
 # =========================
 
 st.set_page_config(page_title="Workout Scheduler", page_icon="💪", layout="wide")
 
 # =========================
-# Login (Mobile-friendly)
+# Login (centered, mobile-friendly)
 # =========================
 
 if "user" not in st.session_state:
@@ -62,7 +62,7 @@ st.sidebar.success(f"Logged in as: {user}")
 st.sidebar.markdown("---")
 team_name_input = st.sidebar.text_input(
     "👥 Team Name (optional)",
-    placeholder="Enter a team to share workouts"
+    placeholder="Share this name to sync workouts"
 )
 
 team_name = None
@@ -71,18 +71,18 @@ if team_name_input:
     set_user_team(user, team_name)
     st.sidebar.info(f"You're part of team: **{team_name}**")
 else:
-    # keep previous team if exists
     existing_team = get_user_team(user)
     if existing_team:
         team_name = existing_team
         st.sidebar.info(f"You're part of team: **{team_name}**")
 
 # =========================
-# Persistent base schedules
+# Base schedule caching
 # =========================
 
 if "personal_base_schedule" not in st.session_state:
     st.session_state.personal_base_schedule = {}  # {week: {day: base_day}}
+
 
 def get_personal_base_day(week, day):
     if week not in st.session_state.personal_base_schedule:
@@ -91,6 +91,7 @@ def get_personal_base_day(week, day):
         st.session_state.personal_base_schedule[week][day] = generate_base_day(week, day)
     return st.session_state.personal_base_schedule[week][day]
 
+
 def get_team_base_day(team, week, day):
     base = get_shared_base_day(team, week, day)
     if base:
@@ -98,6 +99,7 @@ def get_team_base_day(team, week, day):
     base = generate_base_day(week, day)
     set_shared_base_day(team, week, day, base)
     return base
+
 
 # =========================
 # Sidebar Navigation
@@ -126,13 +128,12 @@ if view_mode == "Daily Workout":
     week = st.selectbox("Select Week", [1, 2, 3, 4], index=0)
     day = st.radio("Select Day", [1, 2, 3, 4], horizontal=True)
 
-    # Decide which base plan to use
+    # Decide which template to use
     if team_name:
         base_day = get_team_base_day(team_name, week, day)
     else:
         base_day = get_personal_base_day(week, day)
 
-    # Build user-specific view (weights per user)
     day_plan = build_user_day_from_base(base_day, week, user)
 
     st.subheader(f"Week {week} – {phase_names[week - 1]}")
@@ -140,13 +141,13 @@ if view_mode == "Daily Workout":
     st.caption(f"👋 Welcome, **{user.title()}** — ready to train?")
 
     if team_name:
-        st.info(f"🤝 You're synced with **Team {team_name}** — everyone on this team sees the same exercises.")
+        st.info(f"🤝 You're synced with **Team {team_name}** — everyone on this team shares the same exercises.")
 
     st.write("### Today's Workout")
     for group, text in day_plan.items():
         st.write(f"**{group}:** {text}")
 
-    # --- Workout completion with undo ---
+    # --- Completion + Undo ---
     if check_workout_done(user, week, day):
         st.success("✅ Workout complete! Great job 💪")
         col1, col2 = st.columns(2)
@@ -155,7 +156,7 @@ if view_mode == "Daily Workout":
         with col2:
             if st.button("↩️ Undo Completion"):
                 unmark_workout_done(user, week, day)
-                st.warning("Workout unmarked. You can mark it complete again anytime.")
+                st.warning("Workout unmarked. You can mark it again anytime.")
                 st.experimental_rerun()
     else:
         if st.button("🎉 I Did It!"):
@@ -173,7 +174,7 @@ if view_mode == "Daily Workout":
         st.progress(pct)
         st.caption(f"Week {week} progress: {len(completed_days)}/4 workouts logged.")
 
-    # --- Update weights (Week 1 only, for current day's exercises) ---
+    # --- Update weights (Week 1 only) ---
     if week == 1:
         st.markdown("---")
         st.subheader("🏋️ Update Today's Weights")
@@ -184,12 +185,14 @@ if view_mode == "Daily Workout":
 
         for group, text in day_plan.items():
             exercise_name = text.split("—")[0].strip()
-            # Try to parse current shown weight (if numeric)
+
+            # Try to parse current numeric weight (ignore 'try' and 'deload')
             try:
-                part = text.split("—")[1]
-                if "deload" in part.lower():
+                right = text.split("—", 1)[1]
+                if "deload" in right.lower():
                     raise ValueError
-                num_str = part.split("lbs")[0].replace("try", "").strip().split(",")[0].strip()
+                # before any comma / 'try'
+                num_str = right.split("lbs")[0].split(",")[0].replace("try", "").strip()
                 current_display_weight = float(num_str)
             except Exception:
                 current_display_weight = None
@@ -208,9 +211,9 @@ if view_mode == "Daily Workout":
             if st.button("💾 Save Today's Updates"):
                 for name, val in updates.items():
                     update_weight(user, name, val)
-                st.success("✅ Updated today's exercise weights!")
+                st.success("✅ Updated today's exercise weights & logged history!")
         else:
-            st.info("No changes yet — tweak a number above to enable saving.")
+            st.info("No changes yet — tweak a value above to enable saving.")
 
 # =========================
 # FULL 4-WEEK SCHEDULE
@@ -223,7 +226,6 @@ elif view_mode == "Full 4-Week Schedule":
         st.markdown(f"## 🏋️ Week {week_num} – {phase}")
         with st.expander(f"View Week {week_num} Workouts"):
             for day_num in range(1, 5):
-                # Use team base if team exists, else personal
                 if team_name:
                     base_day = get_team_base_day(team_name, week_num, day_num)
                 else:
@@ -246,7 +248,7 @@ elif view_mode == "Progress Tracker":
     st.markdown("### 💪 Weight Progress Over Time")
     weight_history = load_weight_history(user)
 
-    # All known exercises
+    # Build exercise list from library + history keys
     all_exercises = set()
     for group in [
         delts, chest, biceps, butt,
@@ -261,6 +263,7 @@ elif view_mode == "Progress Tracker":
 
     if exercise_names:
         selected = st.selectbox("Choose an exercise to track", exercise_names)
+
         if selected in weight_history and len(weight_history[selected]) > 1:
             dates = [e["date"] for e in weight_history[selected]]
             weights = [e["weight"] for e in weight_history[selected]]
@@ -284,27 +287,30 @@ elif view_mode == "Progress Tracker":
         st.info("No exercises found in history — complete workouts & log weights to see progress.")
 
     st.markdown("---")
+
+    # Weekly overview
     progress = load_progress(user)
     if progress:
         st.markdown("### 🏁 Weekly Progress Overview")
         week_counts = {}
         for key in progress.keys():
             try:
-                week_num = int(key.split()[1])
+                parts = key.split()
+                w = int(parts[1])
             except Exception:
                 continue
-            week_counts[week_num] = week_counts.get(week_num, 0) + 1
+            week_counts[w] = week_counts.get(w, 0) + 1
 
-        for week_num in range(1, 5):
-            completed = week_counts.get(week_num, 0)
+        for w in range(1, 5):
+            completed = week_counts.get(w, 0)
             pct = completed / 4
             st.progress(pct)
-            st.write(f"**Week {week_num}:** {completed}/4 workouts")
+            st.write(f"**Week {w}:** {completed}/4 workouts")
     else:
         st.info("No workouts logged yet. Go smash one! 💪")
 
 # =========================
-# TEAM DASHBOARD
+# TEAM DASHBOARD (This Week + Leaderboard)
 # =========================
 
 elif view_mode == "🏆 Team Dashboard":
@@ -312,56 +318,77 @@ elif view_mode == "🏆 Team Dashboard":
 
     current_team = team_name or get_user_team(user)
     if not current_team:
-        st.info("Join a team first by setting a Team Name in the sidebar.")
+        st.info("Set a Team Name in the sidebar to see team stats.")
     else:
         st.markdown(f"### Team: **{current_team}**")
 
-        # Find all users in this team
-        members = []
-        for u in get_all_users():
-            if get_user_team(u) == current_team:
-                members.append(u)
+        # Collect team members
+        members = [
+            u for u in get_all_users()
+            if get_user_team(u) == current_team
+        ]
 
         if not members:
-            st.info("No other members on this team yet. Invite friends to join using the same team name!")
+            st.info("No other members on this team yet. Share your Team Name so others can join.")
         else:
-            total_completed = 0
-            total_possible = len(members) * 4 * 4  # 4 weeks * 4 days
-            for member in members:
-                progress = load_progress(member)
+            tab_week, tab_leader = st.tabs(["📅 This Week Only", "🥇 Leaderboard"])
 
-                # Count completions per week/day
-                week_summary = {w: [False] * 4 for w in range(1, 5)}
-                for key in progress.keys():
-                    try:
-                        parts = key.split()
-                        w = int(parts[1])
-                        d = int(parts[3])
-                        if 1 <= w <= 4 and 1 <= d <= 4:
-                            week_summary[w][d - 1] = True
-                    except Exception:
-                        continue
+            # ---------- This Week Only ----------
+            with tab_week:
+                week_choice = st.selectbox("Select Program Week", [1, 2, 3, 4], index=0)
+                st.markdown(f"#### Week {week_choice} Check-ins")
 
-                member_total = sum(
-                    1 for w in range(1, 5) for d in range(4) if week_summary[w][d]
-                )
-                total_completed += member_total
+                for m in members:
+                    progress = load_progress(m)
+                    days = [f"Week {week_choice} Day {d}" for d in range(1, 5)]
+                    status = ["✅" if key in progress else "⬜" for key in days]
+                    completed = status.count("✅")
 
-                # Display card per member
-                st.markdown(f"#### 👤 {member}")
+                    st.write(f"**{m}**: {' '.join(status)}  ({completed}/4)")
+                    pct = completed / 4
+                    st.progress(pct)
 
-                for w in range(1, 5):
-                    row = "".join("✅" if done else "⬜" for done in week_summary[w])
-                    st.write(f"Week {w}: {row}")
+            # ---------- Leaderboard (All-time over 4 weeks) ----------
+            with tab_leader:
+                st.markdown("#### Overall Leaderboard (Weeks 1–4)")
 
-                pct = member_total / (4 * 4)
-                st.progress(pct)
-                st.caption(f"{member_total}/16 workouts completed")
+                leaderboard = []
+                for m in members:
+                    progress = load_progress(m)
+                    count = 0
+                    for key in progress.keys():
+                        try:
+                            parts = key.split()
+                            w = int(parts[1])
+                            d = int(parts[3])
+                            if 1 <= w <= 4 and 1 <= d <= 4:
+                                count += 1
+                        except Exception:
+                            continue
+                    pct = count / 16  # 4 weeks * 4 days
+                    leaderboard.append((m, count, pct))
 
-                st.markdown("---")
+                # Sort by pct desc, then name
+                leaderboard.sort(key=lambda x: (-x[2], x[0]))
 
-            # Team aggregate
-            if total_possible > 0:
-                team_pct = total_completed / total_possible
-                st.success(f"🏁 Team Completion Rate: **{round(team_pct * 100)}%** "
-                           f"({total_completed}/{total_possible} workouts logged)")
+                if not leaderboard:
+                    st.info("No team workouts logged yet. Get moving! 💪")
+                else:
+                    total_completed = sum(x[1] for x in leaderboard)
+                    total_possible = len(leaderboard) * 16
+
+                    # Medals map
+                    medals = ["🥇", "🥈", "🥉"]
+
+                    for idx, (m, count, pct) in enumerate(leaderboard, start=1):
+                        medal = medals[idx - 1] if idx <= 3 else "⭐"
+                        st.write(f"{medal} **{m}** — {count}/16 workouts ({round(pct*100)}%)")
+                        st.progress(pct)
+
+                    if total_possible > 0:
+                        team_pct = total_completed / total_possible
+                        st.markdown("---")
+                        st.success(
+                            f"🏁 Team Completion Rate: **{round(team_pct * 100)}%** "
+                            f"({total_completed}/{total_possible} workouts logged)"
+                        )
