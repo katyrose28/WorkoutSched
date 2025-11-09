@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import time
 import json
 from helpers import (
-    load_weights, update_weight, generate_day,
-    mark_workout_done, check_workout_done,
+    load_weights, update_weight, generate_base_day, build_user_day_from_base,
+    mark_workout_done, check_workout_done, unmark_workout_done,
     load_progress, load_weight_history, load_user_schedule, save_user_schedule
 )
 from exercises import (
