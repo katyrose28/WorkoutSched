@@ -46,13 +46,19 @@ def get_day_plan(week, day):
         st.session_state.weekly_schedule[week][day] = generate_day(week, day)
     return st.session_state.weekly_schedule[week][day]
 
-def get_or_generate_shared_day(owner, week, day):
-    """Load or create a shared plan for a buddy."""
+def get_or_generate_shared_day(owner, week, day, user):
+    """Load a shared plan or generate one, syncing for both users."""
+    owner = owner.strip().lower()
+    user = user.strip().lower()
+
     shared = get_shared_plan(owner, week, day)
     if shared:
+        set_shared_plan(user, week, day, shared)
         return shared
+
     plan = get_day_plan(week, day)
     set_shared_plan(owner, week, day, plan)
+    set_shared_plan(user, week, day, plan)
     return plan
 
 # --- Sidebar Navigation ---
@@ -75,13 +81,16 @@ if view_mode == "Daily Workout":
 
     # Get plan (shared if buddy is set)
     if buddy:
-        st.session_state.day_plan = get_or_generate_shared_day(buddy, week, day)
+        st.session_state.day_plan = get_or_generate_shared_day(buddy, week, day, user)
     else:
         st.session_state.day_plan = get_day_plan(week, day)
 
     st.subheader(f"Week {week} – {phase_names[week - 1]}")
     st.caption(f"Day {day}")
     st.caption(f"👋 Welcome, **{user.title()}** — ready to train?")
+
+    if buddy:
+        st.info(f"🤝 Matched with **{buddy.title()}** — you’re sharing workouts!")
 
     st.write("### Today's Workout")
     for group, text in st.session_state.day_plan.items():
