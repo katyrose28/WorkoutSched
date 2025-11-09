@@ -59,7 +59,7 @@ if view_mode == "Daily Workout":
 
     # 🎯 Mark workout completion
     if check_workout_done(week, day):
-    st.success("✅ Workout complete! Great job 💪")
+      st.success("✅ Workout complete! Great job 💪")
     else:
       if st.button("🎉 I Did It!"):
         mark_workout_done(week, day)
