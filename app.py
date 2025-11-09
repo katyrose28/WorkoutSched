@@ -12,9 +12,10 @@ from exercises import (
     triceps, calf, thighs
 )
 
+# --- Streamlit Page Setup ---
 st.set_page_config(page_title="Workout Scheduler", page_icon="💪", layout="wide")
 
-# --- Persistent schedule ---
+# --- Persistent Schedule ---
 if "weekly_schedule" not in st.session_state:
     st.session_state.weekly_schedule = {}
 
@@ -53,20 +54,35 @@ if view_mode == "Daily Workout":
     st.subheader(f"Week {week} – {phase_names[week - 1]}")
     st.caption(f"Day {day}")
 
+    # --- Today's Workout ---
     st.write("### Today's Workout")
     for group, text in st.session_state.day_plan.items():
         st.write(f"**{group}:** {text}")
 
-    # 🎯 Mark workout completion
+    # --- Workout Completion ---
     if check_workout_done(week, day):
-      st.success("✅ Workout complete! Great job 💪")
-    else:
-      if st.button("🎉 I Did It!"):
-        mark_workout_done(week, day)
-        st.session_state[f"done_{week}_{day}"] = True
         st.success("✅ Workout complete! Great job 💪")
+    else:
+        if st.button("🎉 I Did It!"):
+            mark_workout_done(week, day)
+            st.session_state[f"done_{week}_{day}"] = True
+            st.success("✅ Workout complete! Great job 💪")
 
-    # 🏋️ Update weights (Week 1 only)
+    # --- Weekly Progress Badge ---
+    progress = load_progress()
+    completed_days = [
+        d for d in range(1, 5)
+        if f"Week {week} Day {d}" in progress
+    ]
+
+    if len(completed_days) == 4:
+        st.success(f"🎯 Week {week} complete! 4/4 workouts logged.")
+    else:
+        pct = len(completed_days) / 4
+        st.progress(pct)
+        st.caption(f"Week {week} progress: {len(completed_days)}/4 workouts logged.")
+
+    # --- Update Weights (Week 1 Only) ---
     if week == 1:
         st.markdown("---")
         st.subheader("🏋️ Update Today's Weights")
@@ -100,7 +116,7 @@ if view_mode == "Daily Workout":
         else:
             st.info("No changes yet — adjust a weight above to enable saving.")
 
-# === FULL SCHEDULE ===
+# === FULL 4-WEEK SCHEDULE ===
 elif view_mode == "Full 4-Week Schedule":
     st.title("🗓 Full 4-Week Schedule")
     for week_num, phase in enumerate(phase_names, start=1):
@@ -122,68 +138,4 @@ elif view_mode == "Progress Tracker":
     st.title("📈 Progress Tracker")
 
     # --- 💪 Weight Progress Section ---
-    st.markdown("### 💪 Weight Progress Over Time")
-    weight_history = load_weight_history()
-
-    # Gather all known exercises
-    all_exercises = set()
-    for group in [
-        delts, chest, biceps, butt, back_lats, back_mids, back_lower,
-        back_combo, abs_upper, abs_lower, abs_combo, triceps, calf, thighs
-    ]:
-        for ex, _ in group:
-            all_exercises.add(ex)
-    all_exercises.update(weight_history.keys())
-
-    exercise_names = sorted(all_exercises)
-
-    if exercise_names:
-        selected = st.selectbox("Choose an exercise to track", exercise_names)
-
-        if selected in weight_history and len(weight_history[selected]) > 1:
-            dates = [entry["date"] for entry in weight_history[selected]]
-            weights = [entry["weight"] for entry in weight_history[selected]]
-
-            # 🎨 Plot trend line
-            fig, ax = plt.subplots(figsize=(6, 3))
-            ax.plot(dates, weights, marker="o", linewidth=2, color="deepskyblue")
-
-            # Show trend direction
-            trend = "🔺" if weights[-1] > weights[-2] else "🔻"
-            ax.set_title(f"{selected} Progress Over Time {trend}")
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Weight (lbs)")
-            plt.xticks(rotation=30, ha="right")
-            st.pyplot(fig)
-
-            # Show PR
-            pr = max(weights)
-            st.success(f"🏆 Personal Record for **{selected}: {pr} lbs**")
-
-        elif selected in weight_history:
-            st.info(f"Only one entry for **{selected}** so far — update again to see progress!")
-        else:
-            st.info("No data yet for this exercise — update it in Week 1 to begin tracking!")
-    else:
-        st.info("No exercises found — complete a workout to start tracking!")
-
-    st.markdown("---")
-
-    # --- 🗓 Workout Completion Section ---
-    progress = load_progress()
-    if progress:
-        st.markdown("### 🏁 Weekly Progress Overview")
-
-    # Count workouts
-    week_counts = {}
-    for key in progress.keys():
-        week = int(key.split()[1])
-        week_counts[week] = week_counts.get(week, 0) + 1
-
-    for week in range(1, 5):
-        completed = week_counts.get(week, 0)
-        pct = completed / 4
-        st.progress(pct)
-        st.write(f"**Week {week}:** {completed}/4 workouts")
-    else:
-        st.info("No workouts logged yet. Go smash one! 💪")
+    st.markdown("### 💪
