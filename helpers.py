@@ -47,13 +47,17 @@ def save_shared_plans(data):
         json.dump(data, f, indent=4)
 
 def get_shared_plan(owner, week, day):
+    """Get a shared plan by normalized owner key."""
+    owner_key = owner.strip().lower()
     plans = load_shared_plans()
-    key = f"{owner}_week{week}_day{day}"
+    key = f"{owner_key}_week{week}_day{day}"
     return plans.get(key)
 
 def set_shared_plan(owner, week, day, plan):
+    """Save a shared plan by normalized owner key."""
+    owner_key = owner.strip().lower()
     plans = load_shared_plans()
-    key = f"{owner}_week{week}_day{day}"
+    key = f"{owner_key}_week{week}_day{day}"
     plans[key] = plan
     save_shared_plans(plans)
 
