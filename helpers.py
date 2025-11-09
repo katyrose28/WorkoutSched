@@ -297,17 +297,18 @@ def format_exercise_for_user(exercise_name, week_num, user):
     user_weights = load_weights(user)
     weight = user_weights.get(exercise_name, base)
 
-    # Non-numeric gear (bands, cables, ankle weights, etc.)
-    if not isinstance(weight, (int, float)):
-        if base is None:
-            return f"{exercise_name} — Bodyweight"
-        return f"{exercise_name} — {str(weight).capitalize()}"
-
-    # Bodyweight
-    if weight == 0:
+    # --- Non-numeric or missing weight (e.g. bands, cables, or undefined) ---
+    if weight is None:
         return f"{exercise_name} — Bodyweight"
 
-    # Week/phase logic
+    if isinstance(weight, str):
+        return f"{exercise_name} — {weight.capitalize()}"
+
+    # --- Bodyweight exercise ---
+    if isinstance(weight, (int, float)) and weight == 0:
+        return f"{exercise_name} — Bodyweight"
+
+    # --- Apply phase logic ---
     if week_num == 1:
         return f"{exercise_name} — {weight} lbs, try {weight + 5} lbs"
     elif week_num == 4:
