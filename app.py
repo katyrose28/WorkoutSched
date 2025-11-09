@@ -4,7 +4,7 @@ from helpers import (
     load_weights, update_weight, generate_day,
     mark_workout_done, check_workout_done,
     load_progress, load_weight_history,
-    set_shared_plan, get_shared_plan
+    set_shared_plan, get_shared_plan, save_user_data
 )
 from exercises import (
     delts, chest, biceps, butt,
@@ -13,19 +13,29 @@ from exercises import (
     triceps, calf, thighs
 )
 
+# --- Streamlit setup ---
 st.set_page_config(page_title="Workout Scheduler", page_icon="💪", layout="wide")
 
-# --- Login ---
-st.sidebar.header("👤 User Login")
-user = st.sidebar.text_input("Enter your name or nickname:", value=st.session_state.get("user", ""))
+# --- Centered Login Section (mobile-friendly) ---
+if "user" not in st.session_state:
+    st.session_state["user"] = ""
 
-if user:
-    user = user.strip().lower().replace(" ", "_")
-    st.session_state["user"] = user
-    st.sidebar.success(f"Logged in as: {user}")
-else:
-    st.warning("Please enter your name to continue.")
-    st.stop()
+st.title("💪 Workout Scheduler")
+
+if not st.session_state["user"]:
+    st.markdown("### 👋 Welcome! Please log in to get started.")
+    name_input = st.text_input("Enter your name or nickname:", placeholder="e.g. Katy")
+
+    if name_input:
+        st.session_state["user"] = name_input.strip().lower().replace(" ", "_")
+        st.success(f"Logged in as: **{st.session_state['user']}**")
+        st.rerun()
+    else:
+        st.warning("Please enter your name to continue.")
+        st.stop()
+
+user = st.session_state["user"]
+st.sidebar.success(f"Logged in as: {user}")
 
 # --- Workout Buddy Sync ---
 st.sidebar.markdown("---")
@@ -34,7 +44,7 @@ if buddy:
     buddy = buddy.strip().lower().replace(" ", "_")
     st.sidebar.info(f"Syncing workouts with: **{buddy}**")
 
-# --- Persistent Schedule ---
+# --- Persistent schedule ---
 if "weekly_schedule" not in st.session_state:
     st.session_state.weekly_schedule = {}
 
@@ -79,7 +89,7 @@ if view_mode == "Daily Workout":
     week = st.selectbox("Select Week", [1, 2, 3, 4], index=0)
     day = st.radio("Select Day", [1, 2, 3, 4], horizontal=True)
 
-    # Get plan (shared if buddy is set)
+    # Shared or personal plan
     if buddy:
         st.session_state.day_plan = get_or_generate_shared_day(buddy, week, day, user)
     else:
@@ -96,7 +106,7 @@ if view_mode == "Daily Workout":
     for group, text in st.session_state.day_plan.items():
         st.write(f"**{group}:** {text}")
 
-    # --- Workout completion ---
+    # --- Workout Completion Section ---
     if check_workout_done(user, week, day):
         st.success("✅ Workout complete! Great job 💪")
         st.button("🎉 I Did It!", disabled=True)
@@ -105,7 +115,6 @@ if view_mode == "Daily Workout":
             key = f"Week {week} Day {day}"
             if key in progress:
                 del progress[key]
-                from helpers import save_user_data
                 save_user_data(user, "progress", progress)
                 st.session_state[f"done_{week}_{day}"] = False
                 st.warning("Workout unmarked. You can mark it complete again anytime.")
@@ -116,7 +125,7 @@ if view_mode == "Daily Workout":
             st.session_state[f"done_{week}_{day}"] = True
             st.success("✅ Workout complete! Great job 💪")
 
-    # --- Weekly progress badge ---
+    # --- Weekly Progress Badge ---
     progress = load_progress(user)
     completed_days = [d for d in range(1, 5) if f"Week {week} Day {d}" in progress]
     if len(completed_days) == 4:
@@ -126,7 +135,7 @@ if view_mode == "Daily Workout":
         st.progress(pct)
         st.caption(f"Week {week} progress: {len(completed_days)}/4 workouts logged.")
 
-    # --- Update weights (Week 1 only) ---
+    # --- Update Weights (Week 1 only) ---
     if week == 1:
         st.markdown("---")
         st.subheader("🏋️ Update Today's Weights")
@@ -158,6 +167,22 @@ if view_mode == "Daily Workout":
         else:
             st.info("No changes yet — adjust a weight above to enable saving.")
 
+# === FULL 4-WEEK SCHEDULE ===
+elif view_mode == "Full 4-Week Schedule":
+    st.title("🗓 Full 4-Week Schedule")
+    for week_num, phase in enumerate(phase_names, start=1):
+        st.markdown(f"## 🏋️ Week {week_num} – {phase}")
+        with st.expander(f"View Week {week_num} Workouts"):
+            if st.button(f"Regenerate Week {week_num}"):
+                st.session_state.weekly_schedule[week_num] = {}
+                st.success(f"✅ Week {week_num} regenerated!")
+            for day_num in range(1, 5):
+                day_plan = get_day_plan(week_num, day_num)
+                st.markdown(f"### Day {day_num}")
+                for group, text in day_plan.items():
+                    st.write(f"- **{group}:** {text}")
+                st.divider()
+
 # === PROGRESS TRACKER ===
 elif view_mode == "Progress Tracker":
     st.title("📈 Progress Tracker")
@@ -165,6 +190,7 @@ elif view_mode == "Progress Tracker":
     st.markdown("### 💪 Weight Progress Over Time")
     weight_history = load_weight_history(user)
 
+    # Gather all known exercises
     all_exercises = set()
     for group in [
         delts, chest, biceps, butt, back_lats, back_mids, back_lower,
@@ -180,7 +206,6 @@ elif view_mode == "Progress Tracker":
         if selected in weight_history and len(weight_history[selected]) > 1:
             dates = [entry["date"] for entry in weight_history[selected]]
             weights = [entry["weight"] for entry in weight_history[selected]]
-
             fig, ax = plt.subplots(figsize=(6, 3))
             ax.plot(dates, weights, marker="o", linewidth=2, color="deepskyblue")
             trend = "🔺" if weights[-1] > weights[-2] else "🔻"
@@ -189,7 +214,6 @@ elif view_mode == "Progress Tracker":
             ax.set_ylabel("Weight (lbs)")
             plt.xticks(rotation=30, ha="right")
             st.pyplot(fig)
-
             pr = max(weights)
             st.success(f"🏆 Personal Record for **{selected}: {pr} lbs**")
         elif selected in weight_history:
