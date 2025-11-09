@@ -28,16 +28,26 @@ def show_leaderboard():
         return
 
     # --- Display leaderboard ---
+        # --- Display leaderboard ---
     st.markdown("### 🥇 Top Performers")
 
     medal_emojis = ["🥇", "🥈", "🥉"]
+    current_user = st.session_state.get("username", "").lower()
 
     for idx, entry in enumerate(leaderboard_data, start=1):
         medal = medal_emojis[idx - 1] if idx <= len(medal_emojis) else "🏋️"
-        st.markdown(
-            f"{medal} **{entry['user']}** — {entry['total']} workouts completed "
-            f"({entry['team']})"
-        )
+        if entry["user"].lower() == current_user:
+            st.markdown(
+                f"<div style='background-color:#222;padding:6px;border-radius:8px;'>"
+                f"⭐ **You ({entry['user']})** — {entry['total']} workouts completed "
+                f"({entry['team']})</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"{medal} **{entry['user']}** — {entry['total']} workouts completed "
+                f"({entry['team']})"
+            )
 
     # --- Optional team summary ---
     st.divider()
