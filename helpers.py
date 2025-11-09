@@ -1,71 +1,72 @@
-import random
-import json
 import os
+import json
+import random
 from datetime import datetime
 
+# --- Per-User Data Directory ---
+USER_DIR = "user_data"
+os.makedirs(USER_DIR, exist_ok=True)
 
-# --- File paths ---
-WEIGHTS_FILE = "weights_data.json"
-PROGRESS_FILE = "progress_data.json"
+# --- Generic User File Helpers ---
+def get_user_file(user, file_type):
+    """Return a user-specific JSON path (e.g., katyrose_progress.json)."""
+    filename = f"{user}_{file_type}.json"
+    return os.path.join(USER_DIR, filename)
 
-# --- Load or initialize weights file ---
-def load_weights():
-    if os.path.exists(WEIGHTS_FILE):
-        try:
-            with open(WEIGHTS_FILE, "r") as f:
-                data = f.read().strip()
-                if not data:
-                    return {}
-                return json.loads(data)
-        except json.JSONDecodeError:
-            return {}
-    return {}
-
-# --- Save updated weights ---
-def save_weights(data):
-    with open(WEIGHTS_FILE, "w") as f:
-        json.dump(data, f, indent=4)
-
-# --- Update a specific exercise weight ---
-def update_weight(exercise_name, new_weight):
-    data = load_weights()
-    data[exercise_name] = new_weight
-    save_weights(data)
-    print(f"✅ Updated {exercise_name} to {new_weight} lbs.")
-
-
-WEIGHT_HISTORY_FILE = "weight_history.json"
-
-def load_weight_history():
-    if os.path.exists(WEIGHT_HISTORY_FILE):
-        with open(WEIGHT_HISTORY_FILE, "r") as f:
+def load_user_data(user, file_type):
+    """Load JSON data for a given user and file type."""
+    path = get_user_file(user, file_type)
+    if os.path.exists(path):
+        with open(path, "r") as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
                 return {}
     return {}
 
-def save_weight_history(data):
-    with open(WEIGHT_HISTORY_FILE, "w") as f:
+def save_user_data(user, file_type, data):
+    """Save JSON data for a given user and file type."""
+    with open(get_user_file(user, file_type), "w") as f:
         json.dump(data, f, indent=4)
 
-def log_weight_history(exercise_name, new_weight):
+# --- Weights Management ---
+def load_weights(user):
+    return load_user_data(user, "weights")
+
+def save_weights(user, data):
+    save_user_data(user, "weights", data)
+
+def update_weight(user, exercise_name, new_weight):
+    data = load_weights(user)
+    data[exercise_name] = new_weight
+    save_weights(user, data)
+    log_weight_history(user, exercise_name, new_weight)
+    print(f"✅ Updated {exercise_name} to {new_weight} lbs for {user}")
+
+# --- Weight History Tracking ---
+def load_weight_history(user):
+    return load_user_data(user, "weight_history")
+
+def save_weight_history(user, data):
+    save_user_data(user, "weight_history", data)
+
+def log_weight_history(user, exercise_name, new_weight):
     """Append a dated weight entry for tracking progression."""
-    history = load_weight_history()
-    entry = {"date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "weight": new_weight}
+    history = load_weight_history(user)
+    entry = {"date": datetime.now().strftime("%Y-%m-%d %H:%M"), "weight": new_weight}
 
     if exercise_name not in history:
         history[exercise_name] = []
 
-    # Prevent duplicate entries if same weight logged within 1 hour
+    # Prevent duplicates within 1 hour
     if not history[exercise_name] or abs(
-        datetime.datetime.strptime(entry["date"], "%Y-%m-%d %H:%M") -
-        datetime.datetime.strptime(history[exercise_name][-1]["date"], "%Y-%m-%d %H:%M")
+        datetime.strptime(entry["date"], "%Y-%m-%d %H:%M") -
+        datetime.strptime(history[exercise_name][-1]["date"], "%Y-%m-%d %H:%M")
     ).total_seconds() > 3600:
         history[exercise_name].append(entry)
-        save_weight_history(history)
+        save_weight_history(user, history)
 
-# --- Format weight display ---
+# --- Exercise Formatting ---
 def format_exercise(exercise_tuple):
     exercise, weight = exercise_tuple
     if isinstance(weight, (int, float)):
@@ -73,7 +74,7 @@ def format_exercise(exercise_tuple):
     else:
         return f"{exercise} — {str(weight).capitalize()}"
 
-# --- Track used exercises to reduce repeats ---
+# --- Unique Exercise Selection ---
 used_exercises = {}
 
 def pick_unique_exercise(group_name, exercise_list, week_num):
@@ -87,13 +88,14 @@ def pick_unique_exercise(group_name, exercise_list, week_num):
     choice = random.choice(available)
     history.append(choice[0])
     used_exercises[key] = history
-
     return adjust_weight_display(choice, week_num)
 
-# --- Adjust displayed weight depending on phase ---
+# --- Weight Display Adjustments per Phase ---
 def adjust_weight_display(exercise_tuple, week_num):
     exercise, weight = exercise_tuple
-    updated_weights = load_weights()
+    # We don’t have the user here, so no per-user weights in generation
+    from helpers import load_weights
+    updated_weights = load_weights("default")
     if exercise in updated_weights:
         try:
             weight = float(updated_weights[exercise])
@@ -110,7 +112,7 @@ def adjust_weight_display(exercise_tuple, week_num):
     else:
         return f"{exercise} — {weight} lbs"
 
-# --- Generate a single day's workout ---
+# --- Workout Generation ---
 def generate_day(week_num: int, day_num: int):
     from exercises import (
         delts, chest, biceps, butt,
@@ -118,9 +120,9 @@ def generate_day(week_num: int, day_num: int):
         abs_upper, abs_lower, abs_combo,
         triceps, calf, thighs
     )
-    day_plan = {}
+
     if day_num == 1:
-        day_plan = {
+        return {
             "Delts": pick_unique_exercise("Delts", delts, week_num),
             "Chest": pick_unique_exercise("Chest", chest, week_num),
             "Biceps": pick_unique_exercise("Biceps", biceps, week_num),
@@ -129,7 +131,7 @@ def generate_day(week_num: int, day_num: int):
             "Abs/Upper": pick_unique_exercise("Abs/Upper", abs_upper, week_num),
         }
     elif day_num == 2:
-        day_plan = {
+        return {
             "Triceps": pick_unique_exercise("Triceps", triceps, week_num),
             "Chest": pick_unique_exercise("Chest", chest, week_num),
             "Abs/Lower": pick_unique_exercise("Abs/Lower", abs_lower, week_num),
@@ -138,7 +140,7 @@ def generate_day(week_num: int, day_num: int):
             "Thighs": pick_unique_exercise("Thighs", thighs, week_num),
         }
     elif day_num == 3:
-        day_plan = {
+        return {
             "Delts": pick_unique_exercise("Delts", delts, week_num),
             "Chest": pick_unique_exercise("Chest", chest, week_num),
             "Biceps": pick_unique_exercise("Biceps", biceps, week_num),
@@ -147,7 +149,7 @@ def generate_day(week_num: int, day_num: int):
             "Abs/Upper": pick_unique_exercise("Abs/Upper", abs_combo, week_num),
         }
     elif day_num == 4:
-        day_plan = {
+        return {
             "Triceps": pick_unique_exercise("Triceps", triceps, week_num),
             "Chest": pick_unique_exercise("Chest", chest, week_num),
             "Abs/Lower": pick_unique_exercise("Abs/Lower", abs_lower, week_num),
@@ -155,31 +157,21 @@ def generate_day(week_num: int, day_num: int):
             "Calves": pick_unique_exercise("Calves", calf, week_num),
             "Thighs": pick_unique_exercise("Thighs", thighs, week_num),
         }
-    return day_plan
-
-# --- Progress tracking (for “I did it!” button) ---
-def load_progress():
-    if os.path.exists(PROGRESS_FILE):
-        try:
-            with open(PROGRESS_FILE, "r") as f:
-                data = f.read().strip()
-                if not data:
-                    return {}
-                return json.loads(data)
-        except (json.JSONDecodeError, ValueError):
-            return {}
     return {}
 
-def save_progress(progress):
-    with open(PROGRESS_FILE, "w") as f:
-        json.dump(progress, f, indent=4)
+# --- Progress Tracking (per User) ---
+def load_progress(user):
+    return load_user_data(user, "progress")
 
-def mark_workout_done(week, day):
-    progress = load_progress()
+def save_progress(user, progress):
+    save_user_data(user, "progress", progress)
+
+def mark_workout_done(user, week, day):
+    progress = load_progress(user)
     key = f"Week {week} Day {day}"
     progress[key] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    save_progress(progress)
+    save_progress(user, progress)
 
-def check_workout_done(week, day):
-    progress = load_progress()
+def check_workout_done(user, week, day):
+    progress = load_progress(user)
     return f"Week {week} Day {day}" in progress
