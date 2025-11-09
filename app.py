@@ -5,7 +5,8 @@ import json
 from helpers import (
     load_weights, update_weight, generate_base_day, build_user_day_from_base,
     mark_workout_done, check_workout_done, unmark_workout_done,
-    load_progress, load_weight_history, load_user_schedule, save_user_schedule
+    load_progress, load_weight_history, load_user_schedule, save_user_schedule,
+    get_shared_base_day, set_shared_base_day
 )
 from exercises import (
     delts, chest, biceps, butt,
@@ -21,12 +22,15 @@ st.set_page_config(page_title="Workout Scheduler", page_icon="💪", layout="wid
 st.sidebar.title("👋 Login")
 username = st.sidebar.text_input("Enter your name:")
 buddy_name = st.sidebar.text_input("Workout Buddy (optional):")
+
 if not username:
-    st.warning("Please enter your name to start.")
+    st.warning("Please enter your name to continue.")
     st.stop()
 
-# Load user-specific or shared schedule
+# --- Determine team/sync key ---
 schedule_key = buddy_name.strip().lower() if buddy_name else username.strip().lower()
+
+# --- Load user's schedule ---
 if "weekly_schedule" not in st.session_state or st.session_state.get("active_user") != schedule_key:
     st.session_state.weekly_schedule = load_user_schedule(schedule_key)
     st.session_state.active_user = schedule_key
@@ -45,23 +49,33 @@ phase_names = [
     "Deload / Endurance Phase (12–15 reps)",
 ]
 
-# --- Helper for consistent day plan ---
+# --- Helper: Get or create a consistent workout plan ---
 def get_day_plan(week, day):
-    """Return a consistent plan for the given week/day."""
+    """Return a consistent day plan for the team or user."""
     if week not in st.session_state.weekly_schedule:
         st.session_state.weekly_schedule[week] = {}
-    if day not in st.session_state.weekly_schedule[week]:
-        day_plan = generate_day(week, day)
-        st.session_state.weekly_schedule[week][day] = day_plan
-        save_user_schedule(schedule_key, st.session_state.weekly_schedule)
-    return st.session_state.weekly_schedule[week][day]
+
+    if day in st.session_state.weekly_schedule[week]:
+        return st.session_state.weekly_schedule[week][day]
+
+    # Shared team logic
+    base_day = get_shared_base_day(schedule_key, week, day)
+    if not base_day:
+        base_day = generate_base_day(week, day)
+        set_shared_base_day(schedule_key, week, day, base_day)
+
+    # Build user-specific plan (weights, week scaling)
+    user_day = build_user_day_from_base(base_day, week, username)
+    st.session_state.weekly_schedule[week][day] = user_day
+    save_user_schedule(schedule_key, st.session_state.weekly_schedule)
+    return user_day
 
 
 # === DAILY WORKOUT ===
 if view_mode == "Daily Workout":
     st.title(f"📅 Daily Workout — {username.title()}")
     if buddy_name:
-        st.caption(f"You're synced with {buddy_name.title()}'s plan 💪")
+        st.info(f"🤝 Matched with {buddy_name.title()} — you're sharing workouts!")
 
     week = st.selectbox("Select Week", [1, 2, 3, 4], index=0)
     day = st.radio("Select Day", [1, 2, 3, 4], horizontal=True)
@@ -70,6 +84,7 @@ if view_mode == "Daily Workout":
 
     st.subheader(f"Week {week} – {phase_names[week - 1]}")
     st.caption(f"Day {day}")
+    st.write(f"👋 Welcome, {username.title()} — ready to train?")
 
     # --- 🕒 Global Rest Timer ---
     st.markdown("### 🕒 Rest Timer")
@@ -117,21 +132,16 @@ if view_mode == "Daily Workout":
     if check_workout_done(username, week, day):
         st.success("✅ Workout complete! Great job 💪")
         st.button("🎉 I Did It!", disabled=True)
+
         if st.button("↩️ Undo Completion"):
-            progress = load_progress(username)
-            key = f"Week {week} Day {day}"
-            if key in progress:
-                del progress[key]
-                with open(f"{username.lower()}_progress.json", "w") as f:
-                    json.dump(progress, f, indent=4)
-                st.session_state[f"done_{week}_{day}"] = False
-                st.warning("Workout unmarked. You can mark it complete again anytime.")
-                st.rerun()
+            unmark_workout_done(username, week, day)
+            st.warning("Workout unmarked. You can mark it complete again anytime.")
+            st.rerun()
     else:
         if st.button("🎉 I Did It!"):
             mark_workout_done(username, week, day)
-            st.session_state[f"done_{week}_{day}"] = True
             st.success("✅ Workout complete! Great job 💪")
+            st.rerun()
 
     # --- Weekly Progress Badge ---
     progress = load_progress(username)
@@ -177,7 +187,7 @@ if view_mode == "Daily Workout":
         else:
             st.info("No changes yet — adjust a weight above to enable saving.")
 
-# === FULL SCHEDULE ===
+# === FULL 4-WEEK SCHEDULE ===
 elif view_mode == "Full 4-Week Schedule":
     st.title(f"🗓 Full 4-Week Schedule — {username.title()}")
     for week_num, phase in enumerate(phase_names, start=1):
