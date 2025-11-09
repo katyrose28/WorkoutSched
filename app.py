@@ -47,7 +47,7 @@ if not st.session_state["user"]:
     if name_input:
         st.session_state["user"] = name_input.strip().lower().replace(" ", "_")
         st.success(f"Logged in as **{st.session_state['user']}**")
-        st.experimental_rerun()
+        st.rerun()
     else:
         st.warning("Please enter your name to continue.")
         st.stop()
@@ -157,12 +157,12 @@ if view_mode == "Daily Workout":
             if st.button("↩️ Undo Completion"):
                 unmark_workout_done(user, week, day)
                 st.warning("Workout unmarked. You can mark it again anytime.")
-                st.experimental_rerun()
+                st.rerun()
     else:
         if st.button("🎉 I Did It!"):
             mark_workout_done(user, week, day)
             st.success("✅ Workout complete! Great job 💪")
-            st.experimental_rerun()
+            st.rerun()
 
     # --- Weekly badge / progress bar ---
     progress = load_progress(user)
