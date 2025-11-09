@@ -73,7 +73,7 @@ def set_user_team(user, team_name):
 
 
 def get_all_users():
-    """Infer all user ids from filenames in user_data."""
+    """Infer all user IDs from filenames in user_data."""
     users = set()
     if not os.path.exists(USER_DIR):
         return []
@@ -81,7 +81,6 @@ def get_all_users():
         if not fname.endswith(".json"):
             continue
         base = fname[:-5]  # drop .json
-        # split on last underscore to separate user from file_type
         if "_" in base:
             user = base.rsplit("_", 1)[0]
             if user:
@@ -130,60 +129,7 @@ def set_shared_base_day(team, week, day, base_day):
 
 
 # =========================
-# Weights & Weight History (per user)
-# =========================
-
-def load_weights(user):
-    return load_user_data(user, "weights")
-
-
-def save_weights(user, data):
-    save_user_data(user, "weights", data)
-
-
-def update_weight(user, exercise_name, new_weight):
-    weights = load_weights(user)
-    weights[exercise_name] = new_weight
-    save_weights(user, weights)
-    log_weight_history(user, exercise_name, new_weight)
-
-
-def load_weight_history(user):
-    return load_user_data(user, "weight_history")
-
-
-def save_weight_history(user, history):
-    save_user_data(user, "weight_history", history)
-
-
-def log_weight_history(user, exercise_name, new_weight):
-    """Append a dated weight entry for tracking progression."""
-    history = load_weight_history(user)
-    entry = {
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "weight": float(new_weight),
-    }
-
-    if exercise_name not in history:
-        history[exercise_name] = []
-
-    # Avoid spam: require >1hr between identical logs
-    if history[exercise_name]:
-        last = history[exercise_name][-1]
-        try:
-            last_dt = datetime.strptime(last["date"], "%Y-%m-%d %H:%M")
-            new_dt = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M")
-            if (new_dt - last_dt).total_seconds() <= 3600 and last["weight"] == entry["weight"]:
-                return
-        except Exception:
-            pass
-
-    history[exercise_name].append(entry)
-    save_weight_history(user, history)
-
-
-# =========================
-# Exercise metadata helpers
+# Exercises metadata
 # =========================
 
 def get_all_exercises():
@@ -212,7 +158,60 @@ def get_base_weight(exercise_name):
 
 
 # =========================
-# Unique exercise selection (by name)
+# Weights & History (per user)
+# =========================
+
+def load_weights(user):
+    return load_user_data(user, "weights")
+
+
+def save_weights(user, data):
+    save_user_data(user, "weights", data)
+
+
+def update_weight(user, exercise_name, new_weight):
+    weights = load_weights(user)
+    weights[exercise_name] = float(new_weight)
+    save_weights(user, weights)
+    log_weight_history(user, exercise_name, new_weight)
+
+
+def load_weight_history(user):
+    return load_user_data(user, "weight_history")
+
+
+def save_weight_history(user, history):
+    save_user_data(user, "weight_history", history)
+
+
+def log_weight_history(user, exercise_name, new_weight):
+    """Append a dated weight entry for tracking progression."""
+    history = load_weight_history(user)
+    entry = {
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "weight": float(new_weight),
+    }
+
+    if exercise_name not in history:
+        history[exercise_name] = []
+
+    # Avoid spam: require >1h between identical logs
+    if history[exercise_name]:
+        last = history[exercise_name][-1]
+        try:
+            last_dt = datetime.strptime(last["date"], "%Y-%m-%d %H:%M")
+            new_dt = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M")
+            if (new_dt - last_dt).total_seconds() <= 3600 and last["weight"] == entry["weight"]:
+                return
+        except Exception:
+            pass
+
+    history[exercise_name].append(entry)
+    save_weight_history(user, history)
+
+
+# =========================
+# Unique exercise selection (names only)
 # =========================
 
 used_exercises = {}  # {group_key: [names...]}
@@ -232,13 +231,13 @@ def pick_unique_exercise_name(group_name, exercise_list):
 
 
 # =========================
-# Build base day (exercise names only)
+# Base day generation (shared template)
 # =========================
 
 def generate_base_day(week_num: int, day_num: int):
     """
     Returns a dict of {muscle_group: exercise_name} for a given week/day.
-    This is what gets shared for teams.
+    This is the shared *template* across a team.
     """
     from exercises import (
         delts, chest, biceps, butt,
@@ -287,19 +286,18 @@ def generate_base_day(week_num: int, day_num: int):
 
 
 # =========================
-# Format for a specific user (weights per user)
+# User-specific formatting
 # =========================
 
 def format_exercise_for_user(exercise_name, week_num, user):
     """
-    Turn a base exercise name into a display string with the correct weight
-    for this user & phase.
+    Convert exercise name into text with proper weight for this user + phase.
     """
     base = get_base_weight(exercise_name)
     user_weights = load_weights(user)
     weight = user_weights.get(exercise_name, base)
 
-    # Handle non-numeric (bands, cables, etc.)
+    # Non-numeric gear (bands, cables, ankle weights, etc.)
     if not isinstance(weight, (int, float)):
         if base is None:
             return f"{exercise_name} — Bodyweight"
@@ -309,7 +307,7 @@ def format_exercise_for_user(exercise_name, week_num, user):
     if weight == 0:
         return f"{exercise_name} — Bodyweight"
 
-    # Phase-specific logic
+    # Week/phase logic
     if week_num == 1:
         return f"{exercise_name} — {weight} lbs, try {weight + 5} lbs"
     elif week_num == 4:
@@ -320,8 +318,7 @@ def format_exercise_for_user(exercise_name, week_num, user):
 
 def build_user_day_from_base(base_day, week_num, user):
     """
-    Given a base_day {group: exercise_name},
-    return {group: formatted_string} for that user.
+    Given {group: exercise_name}, return {group: formatted_text} for that user.
     """
     return {
         group: format_exercise_for_user(ex_name, week_num, user)
