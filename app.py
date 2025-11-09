@@ -15,7 +15,19 @@ from exercises import (
 # --- Streamlit Page Setup ---
 st.set_page_config(page_title="Workout Scheduler", page_icon="💪", layout="wide")
 
-# --- Persistent Schedule ---
+# --- User Login ---
+st.sidebar.header("👤 User Login")
+user = st.sidebar.text_input("Enter your name or nickname:", value=st.session_state.get("user", ""))
+
+if user:
+    user = user.strip().lower().replace(" ", "_")
+    st.session_state["user"] = user
+    st.sidebar.success(f"Logged in as: {user}")
+else:
+    st.warning("Please enter your name to continue.")
+    st.stop()
+
+# --- Persistent Schedule (in memory only) ---
 if "weekly_schedule" not in st.session_state:
     st.session_state.weekly_schedule = {}
 
@@ -27,7 +39,7 @@ def get_day_plan(week, day):
         st.session_state.weekly_schedule[week][day] = generate_day(week, day)
     return st.session_state.weekly_schedule[week][day]
 
-# --- Sidebar ---
+# --- Sidebar Navigation ---
 st.sidebar.title("🏋️ Workout Scheduler")
 view_mode = st.sidebar.radio(
     "Choose View",
@@ -53,46 +65,40 @@ if view_mode == "Daily Workout":
 
     st.subheader(f"Week {week} – {phase_names[week - 1]}")
     st.caption(f"Day {day}")
+    st.caption(f"👋 Welcome, **{user.title()}** — ready to train?")
 
     # --- Today's Workout ---
     st.write("### Today's Workout")
     for group, text in st.session_state.day_plan.items():
         st.write(f"**{group}:** {text}")
 
-    # --- Workout Completion with Undo Option ---
-    if check_workout_done(week, day):
+    # --- Workout Completion (with Undo Option) ---
+    if check_workout_done(user, week, day):
         st.success("✅ Workout complete! Great job 💪")
-
-        # Disable the "I Did It!" button when done
         st.button("🎉 I Did It!", disabled=True)
 
-        # Add a small undo button
         if st.button("↩️ Undo Completion"):
-            progress = load_progress()
+            progress = load_progress(user)
             key = f"Week {week} Day {day}"
             if key in progress:
                 del progress[key]
-                with open("progress_data.json", "w") as f:
-                    import json
-                    json.dump(progress, f, indent=4)
+                from helpers import save_user_data
+                save_user_data(user, "progress", progress)
                 st.session_state[f"done_{week}_{day}"] = False
                 st.warning("Workout unmarked. You can mark it complete again anytime.")
                 st.rerun()
-
     else:
-        # Only show the button if not done
         if st.button("🎉 I Did It!"):
-            mark_workout_done(week, day)
+            mark_workout_done(user, week, day)
             st.session_state[f"done_{week}_{day}"] = True
             st.success("✅ Workout complete! Great job 💪")
 
     # --- Weekly Progress Badge ---
-    progress = load_progress()
+    progress = load_progress(user)
     completed_days = [
         d for d in range(1, 5)
         if f"Week {week} Day {d}" in progress
     ]
-
     if len(completed_days) == 4:
         st.success(f"🎯 Week {week} complete! 4/4 workouts logged.")
     else:
@@ -106,7 +112,7 @@ if view_mode == "Daily Workout":
         st.subheader("🏋️ Update Today's Weights")
         st.caption("If you improved any of today's lifts, enter the new weight below:")
 
-        current_weights = load_weights()
+        current_weights = load_weights(user)
         updates = {}
 
         for group, details in st.session_state.day_plan.items():
@@ -129,7 +135,7 @@ if view_mode == "Daily Workout":
         if updates:
             if st.button("💾 Save Today's Updates"):
                 for name, val in updates.items():
-                    update_weight(name, val)
+                    update_weight(user, name, val)
                 st.success("✅ Updated today's exercise weights!")
         else:
             st.info("No changes yet — adjust a weight above to enable saving.")
@@ -157,7 +163,7 @@ elif view_mode == "Progress Tracker":
 
     # --- 💪 Weight Progress Section ---
     st.markdown("### 💪 Weight Progress Over Time")
-    weight_history = load_weight_history()
+    weight_history = load_weight_history(user)
 
     # Gather all known exercises
     all_exercises = set()
@@ -182,7 +188,6 @@ elif view_mode == "Progress Tracker":
             fig, ax = plt.subplots(figsize=(6, 3))
             ax.plot(dates, weights, marker="o", linewidth=2, color="deepskyblue")
 
-            # Show trend direction
             trend = "🔺" if weights[-1] > weights[-2] else "🔻"
             ax.set_title(f"{selected} Progress Over Time {trend}")
             ax.set_xlabel("Date")
@@ -190,7 +195,6 @@ elif view_mode == "Progress Tracker":
             plt.xticks(rotation=30, ha="right")
             st.pyplot(fig)
 
-            # Show PR
             pr = max(weights)
             st.success(f"🏆 Personal Record for **{selected}: {pr} lbs**")
 
@@ -204,11 +208,10 @@ elif view_mode == "Progress Tracker":
     st.markdown("---")
 
     # --- 🗓 Weekly Progress Overview ---
-    progress = load_progress()
+    progress = load_progress(user)
     if progress:
         st.markdown("### 🏁 Weekly Progress Overview")
 
-        # Count workouts by week
         week_counts = {}
         for key in progress.keys():
             week_num = int(key.split()[1])
@@ -219,6 +222,5 @@ elif view_mode == "Progress Tracker":
             pct = completed / 4
             st.progress(pct)
             st.write(f"**Week {week_num}:** {completed}/4 workouts")
-
     else:
         st.info("No workouts logged yet. Go smash one! 💪")
