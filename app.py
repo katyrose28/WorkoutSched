@@ -59,14 +59,28 @@ if view_mode == "Daily Workout":
     for group, text in st.session_state.day_plan.items():
         st.write(f"**{group}:** {text}")
 
-    # --- Workout Completion ---
+        # --- Workout Completion with Undo Option ---
     if check_workout_done(week, day):
         st.success("✅ Workout complete! Great job 💪")
+
+        # Add a small undo button
+        if st.button("↩️ Undo Completion"):
+            progress = load_progress()
+            key = f"Week {week} Day {day}"
+            if key in progress:
+                del progress[key]
+                with open("progress_data.json", "w") as f:
+                    import json
+                    json.dump(progress, f, indent=4)
+                st.session_state[f"done_{week}_{day}"] = False
+                st.warning("Workout unmarked. You can mark it complete again anytime.")
+                st.rerun()
     else:
         if st.button("🎉 I Did It!"):
             mark_workout_done(week, day)
             st.session_state[f"done_{week}_{day}"] = True
             st.success("✅ Workout complete! Great job 💪")
+
 
     # --- Weekly Progress Badge ---
     progress = load_progress()
