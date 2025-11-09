@@ -57,15 +57,21 @@ def get_day_plan(week, day):
         st.session_state.weekly_schedule[week] = {}
 
     if day in st.session_state.weekly_schedule[week]:
-        return st.session_state.weekly_schedule[week][day]
+        # 🔧 Clean old entries that contain '— Bodyweight' twice
+        fixed = {}
+        for group, text in st.session_state.weekly_schedule[week][day].items():
+            parts = text.split("—")
+            if len(parts) > 2 and "Bodyweight" in text:
+                text = "—".join(parts[:2]).strip()
+            fixed[group] = text
+        st.session_state.weekly_schedule[week][day] = fixed
+        return fixed
 
-    # Shared team logic
     base_day = get_shared_base_day(schedule_key, week, day)
     if not base_day:
         base_day = generate_base_day(week, day)
         set_shared_base_day(schedule_key, week, day, base_day)
 
-    # Build user-specific plan (weights, week scaling)
     user_day = build_user_day_from_base(base_day, week, username)
     st.session_state.weekly_schedule[week][day] = user_day
     save_user_schedule(schedule_key, st.session_state.weekly_schedule)
