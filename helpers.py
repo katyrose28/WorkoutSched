@@ -1,7 +1,6 @@
 import random
 import json
 import os
-#import datetime
 from datetime import datetime
 
 
@@ -34,7 +33,6 @@ def update_weight(exercise_name, new_weight):
     save_weights(data)
     print(f"✅ Updated {exercise_name} to {new_weight} lbs.")
 
-import datetime
 
 WEIGHT_HISTORY_FILE = "weight_history.json"
 
