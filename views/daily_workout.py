@@ -55,43 +55,60 @@ def show_daily_workout(username, schedule_key):
     st.subheader(f"Week {week} – {phase_names[week - 1]}")
     st.caption(f"Day {day}")
 
-    # --- Rest Timer ---
-    st.markdown("### 🕒 Rest Timer")
-    rest_mins = st.number_input("Minutes", 0, 3, 1, step=1)
-    rest_secs = st.number_input("Seconds", 0, 59, 0, step=15)
-    total_rest = rest_mins * 60 + rest_secs
+# =========================
+# 🕒 Rest Timer
+# =========================
+import time
+import streamlit.components.v1 as components
 
-    if "timer_running" not in st.session_state:
-        st.session_state.timer_running = False
-    if "timer_end_time" not in st.session_state:
-        st.session_state.timer_end_time = None
+st.markdown("### 🕒 Rest Timer")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("▶️ Start Rest Timer"):
-            st.session_state.timer_running = True
-            st.session_state.timer_end_time = time.time() + total_rest
-            st.rerun()
-    with col2:
-        if st.session_state.timer_running and st.button("⏹ Cancel Timer"):
-            st.session_state.timer_running = False
-            st.session_state.timer_end_time = None
-            st.rerun()
+minutes = st.number_input("Minutes", min_value=0, value=1, step=1)
+seconds = st.number_input("Seconds", min_value=0, value=0, step=5)
+total_seconds = minutes * 60 + seconds
 
-    if st.session_state.timer_running:
-        remaining = int(st.session_state.timer_end_time - time.time())
-        if remaining > 0:
-            mins, secs = divmod(remaining, 60)
-            st.markdown(
-                f"<h1 style='text-align:center; color:#00BFFF;'>⏳ {mins:02d}:{secs:02d}</h1>",
-                unsafe_allow_html=True,
-            )
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.session_state.timer_running = False
-            st.session_state.timer_end_time = None
-            st.success("✅ Rest complete! Let's crush the next set! 💪")
+if st.button("▶️ Start Rest Timer"):
+    placeholder = st.empty()
+    end_time = time.time() + total_seconds
+
+    while time.time() < end_time:
+        remaining = int(end_time - time.time())
+        mins, secs = divmod(remaining, 60)
+        placeholder.markdown(f"⏳ **{mins:02d}:{secs:02d} remaining...**")
+        time.sleep(1)
+
+    placeholder.markdown("✅ **Time’s up!** ⏰")
+
+    # Inject a small JS snippet to play a short beep sequence (3 beeps)
+    components.html(
+        """
+        <script>
+        function playBeep(frequency, duration) {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            oscillator.type = "sine";
+            oscillator.frequency.value = frequency;
+            oscillator.start();
+            gainNode.gain.setValueAtTime(1, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
+            oscillator.stop(ctx.currentTime + duration / 1000);
+        }
+
+        async function beepSequence() {
+            for (let i = 0; i < 3; i++) {
+                playBeep(1000, 300); // 1000 Hz, 0.3s
+                await new Promise(r => setTimeout(r, 500));
+            }
+        }
+        beepSequence();
+        </script>
+        """,
+        height=0,
+    )
+
 
     # --- Today's Workout ---
     st.write("### Today's Workout")
