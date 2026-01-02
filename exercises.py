@@ -143,3 +143,16 @@ all_groups = {
     "Calves": calf,
     "Thighs": thighs,
 }
+
+# exercises.py
+
+def get_exercise_catalog():
+    catalog = []
+    for group, exercises in all_groups.items():
+        for name, default_weight in exercises:
+            catalog.append({
+                "name": name,
+                "muscle_group": group,
+                "default_weight": default_weight
+            })
+    return catalog
