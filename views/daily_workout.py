@@ -2,18 +2,31 @@ import streamlit as st
 import time
 import json
 import os
+import streamlit.components.v1 as components
+
 from helpers import (
-    load_weights, update_weight, generate_base_day, build_user_day_from_base,
-    mark_workout_done, check_workout_done, unmark_workout_done,
-    load_progress, load_user_schedule, save_user_schedule,
-    get_shared_base_day, set_shared_base_day
+    load_weights,
+    update_weight,
+    generate_base_day,
+    build_user_day_from_base,
+    mark_workout_done,
+    check_workout_done,
+    unmark_workout_done,
+    load_progress,
+    load_user_schedule,
+    save_user_schedule,
+    get_shared_base_day,
+    set_shared_base_day,
 )
+
+from exercises import all_groups
+
 
 def show_daily_workout(username, schedule_key):
     """Display daily workout view with timer and set tracking."""
     st.title(f"📅 Daily Workout — {username.title()}")
 
-    # --- Determine Team Sync Info ---
+    # --- Team info ---
     if schedule_key != username.strip().lower():
         st.info(f"🤝 You're training with team: **{schedule_key.title()}**")
 
@@ -24,7 +37,7 @@ def show_daily_workout(username, schedule_key):
         "Deload / Endurance Phase (12–15 reps)",
     ]
 
-    # --- Load user schedule ---
+    # --- Load weekly schedule ---
     if "weekly_schedule" not in st.session_state or st.session_state.get("active_user") != schedule_key:
         st.session_state.weekly_schedule = load_user_schedule(schedule_key)
         st.session_state.active_user = schedule_key
@@ -47,74 +60,128 @@ def show_daily_workout(username, schedule_key):
         save_user_schedule(schedule_key, st.session_state.weekly_schedule)
         return user_day
 
-    # --- Week/Day selectors ---
+    # --- Selectors ---
     week = st.selectbox("Select Week", [1, 2, 3, 4], index=0)
     day = st.radio("Select Day", [1, 2, 3, 4], horizontal=True)
-    st.session_state.day_plan = get_day_plan(week, day)
 
     st.subheader(f"Week {week} – {phase_names[week - 1]}")
     st.caption(f"Day {day}")
 
-# =========================
-# 🕒 Rest Timer
-# =========================
-import time
-import streamlit.components.v1 as components
+    st.session_state.day_plan = get_day_plan(week, day)
 
-st.markdown("### 🕒 Rest Timer")
+    # --- Initialize user-added exercises ---
+    if "user_exercises" not in st.session_state:
+        st.session_state.user_exercises = {}
 
-minutes = st.number_input("Minutes", min_value=0, value=1, step=1)
-seconds = st.number_input("Seconds", min_value=0, value=0, step=5)
-total_seconds = minutes * 60 + seconds
+    st.session_state.user_exercises.setdefault(week, {})
+    st.session_state.user_exercises[week].setdefault(day, [])
 
-if st.button("▶️ Start Rest Timer"):
-    placeholder = st.empty()
-    end_time = time.time() + total_seconds
+    # =========================
+    # 🕒 Rest Timer
+    # =========================
+    st.markdown("### 🕒 Rest Timer")
 
-    while time.time() < end_time:
-        remaining = int(end_time - time.time())
-        mins, secs = divmod(remaining, 60)
-        placeholder.markdown(f"⏳ **{mins:02d}:{secs:02d} remaining...**")
-        time.sleep(1)
+    minutes = st.number_input("Minutes", min_value=0, value=1, step=1)
+    seconds = st.number_input("Seconds", min_value=0, value=0, step=5)
+    total_seconds = minutes * 60 + seconds
 
-    placeholder.markdown("✅ **Time’s up!** ⏰")
+    if st.button("▶️ Start Rest Timer"):
+        placeholder = st.empty()
+        end_time = time.time() + total_seconds
 
-    # Inject a small JS snippet to play a short beep sequence (3 beeps)
-    components.html(
-        """
-        <script>
-        function playBeep(frequency, duration) {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = ctx.createOscillator();
-            const gainNode = ctx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(ctx.destination);
-            oscillator.type = "sine";
-            oscillator.frequency.value = frequency;
-            oscillator.start();
-            gainNode.gain.setValueAtTime(1, ctx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
-            oscillator.stop(ctx.currentTime + duration / 1000);
-        }
+        while time.time() < end_time:
+            remaining = int(end_time - time.time())
+            mins, secs = divmod(remaining, 60)
+            placeholder.markdown(f"⏳ **{mins:02d}:{secs:02d} remaining...**")
+            time.sleep(1)
 
-        async function beepSequence() {
-            for (let i = 0; i < 3; i++) {
-                playBeep(1000, 300); // 1000 Hz, 0.3s
-                await new Promise(r => setTimeout(r, 500));
+        placeholder.markdown("✅ **Time’s up!** ⏰")
+
+        components.html(
+            """
+            <script>
+            function playBeep(freq, duration) {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = freq;
+                osc.start();
+                gain.gain.setValueAtTime(1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
+                osc.stop(ctx.currentTime + duration / 1000);
             }
-        }
-        beepSequence();
-        </script>
-        """,
-        height=0,
-    )
 
+            async function beepSequence() {
+                for (let i = 0; i < 3; i++) {
+                    playBeep(1000, 300);
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
+            beepSequence();
+            </script>
+            """,
+            height=0,
+        )
 
-    # --- Today's Workout ---
-    st.write("### Today's Workout")
+    # =========================
+    # 🏋️ Today's Workout (Base)
+    # =========================
+    st.markdown("### 🏋️ Today's Workout (Base Plan)")
 
+    for group, text in st.session_state.day_plan.items():
+        st.write(f"**{group}:** {text}")
+
+    # =========================
+    # ➕ Add Exercise
+    # =========================
+    st.markdown("### ➕ Add Exercise")
+
+    muscle_group = st.selectbox("Muscle Group", list(all_groups.keys()))
+    exercise_names = [e[0] for e in all_groups[muscle_group]]
+    exercise_name = st.selectbox("Exercise", exercise_names)
+
+    default_weight = dict(all_groups[muscle_group]).get(exercise_name, 0)
+
+    weight = st.number_input("Weight", value=float(default_weight))
+    sets = st.number_input("Sets", min_value=1, max_value=10, value=3)
+    reps = st.text_input("Reps", "6–8")
+
+    if st.button("Add Exercise"):
+        st.session_state.user_exercises[week][day].append(
+            {
+                "name": exercise_name,
+                "muscle_group": muscle_group,
+                "weight": weight,
+                "sets": sets,
+                "reps": reps,
+            }
+        )
+        st.success(f"Added {exercise_name}")
+
+    # =========================
+    # 🏋️ User Added Exercises
+    # =========================
+    if st.session_state.user_exercises[week][day]:
+        st.markdown("### 🏋️ Your Added Exercises")
+        for ex in st.session_state.user_exercises[week][day]:
+            st.markdown(
+                f"""
+                **{ex['name']}**  
+                *{ex['muscle_group']}*  
+                {ex['sets']} × {ex['reps']} @ {ex['weight']}
+                """
+            )
+
+    # =========================
+    # 📊 Set Tracking
+    # =========================
     SET_PROGRESS_DIR = "user_data"
-    def get_set_progress_file(user): return os.path.join(SET_PROGRESS_DIR, f"{user}_setprogress.json")
+    os.makedirs(SET_PROGRESS_DIR, exist_ok=True)
+
+    def get_set_progress_file(user):
+        return os.path.join(SET_PROGRESS_DIR, f"{user}_setprogress.json")
 
     def load_set_progress(user):
         path = get_set_progress_file(user)
@@ -130,15 +197,14 @@ if st.button("▶️ Start Rest Timer"):
         with open(get_set_progress_file(user), "w") as f:
             json.dump(data, f, indent=4)
 
-    # Load or initialize set progress
     set_progress = load_set_progress(username)
     progress_key = f"week{week}_day{day}"
     set_progress.setdefault(progress_key, {})
 
     total_sets = total_done = 0
+
     for group, text in st.session_state.day_plan.items():
         exercise_name = text.split("—")[0].strip()
-        st.write(f"**{group}:** {text}")
 
         if exercise_name not in set_progress[progress_key]:
             set_progress[progress_key][exercise_name] = [False, False, False]
@@ -147,7 +213,7 @@ if st.button("▶️ Start Rest Timer"):
         for i in range(3):
             with cols[i]:
                 done = st.checkbox(
-                    f"Set {i+1}",
+                    f"Set {i + 1}",
                     value=set_progress[progress_key][exercise_name][i],
                     key=f"{exercise_name}_set{i+1}_{week}_{day}",
                 )
@@ -162,24 +228,27 @@ if st.button("▶️ Start Rest Timer"):
     save_set_progress(username, set_progress)
     st.markdown(f"### 🔥 Overall Progress: {total_done}/{total_sets} sets complete!")
 
-    # --- Workout Completion ---
+    # =========================
+    # ✅ Workout Completion
+    # =========================
     if check_workout_done(username, week, day):
         st.success("✅ Workout complete! Great job 💪")
         if st.button("↩️ Undo Completion"):
             unmark_workout_done(username, week, day)
-            st.warning("Workout unmarked. You can mark it complete again anytime.")
             st.rerun()
     else:
         if st.button("🎉 I Did It!"):
             mark_workout_done(username, week, day)
-            st.success("✅ Workout complete! Great job 💪")
             st.rerun()
 
-    # --- Weekly Progress ---
+    # =========================
+    # 📈 Weekly Progress
+    # =========================
     progress = load_progress(username)
     completed_days = [d for d in range(1, 5) if f"Week {week} Day {d}" in progress]
     pct = len(completed_days) / 4
     st.progress(pct)
+
     if len(completed_days) == 4:
         st.success("🎯 Week complete!")
     else:
