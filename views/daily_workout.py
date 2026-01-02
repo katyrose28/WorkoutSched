@@ -49,22 +49,22 @@ def show_daily_workout(username, schedule_key):
 
     # --- Helper: get or build a day plan ---
     def get_day_plan(week, day):
-        if week not in st.session_state.weekly_schedule:
-            st.session_state.weekly_schedule[week] = {}
+        # Ensure week exists
+        st.session_state.weekly_schedule.setdefault(week, {})
 
+        # If the day already exists (from Full Schedule), USE IT
         if day in st.session_state.weekly_schedule[week]:
             return st.session_state.weekly_schedule[week][day]
 
-        # 🔑 USE shared_key HERE (THIS WAS THE BUG)
-        base_day = get_shared_base_day(shared_key, week, day)
-        if not base_day:
-            base_day = generate_base_day(week, day)
-            set_shared_base_day(shared_key, week, day, base_day)
-
+        # Otherwise generate JUST this day
+        base_day = generate_base_day(week, day)
         user_day = build_user_day_from_base(base_day, week, username)
+
         st.session_state.weekly_schedule[week][day] = user_day
         save_user_schedule(shared_key, st.session_state.weekly_schedule)
+
         return user_day
+
 
     # --- Selectors ---
     week = st.selectbox("Select Week", [1, 2, 3, 4], index=0)
