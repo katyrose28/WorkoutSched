@@ -26,9 +26,14 @@ def show_daily_workout(username, schedule_key):
     """Display daily workout view with timer and set tracking."""
     st.title(f"📅 Daily Workout — {username.title()}")
 
+    # --- Normalize schedule key ---
+    # IMPORTANT FIX:
+    # Individual mode should use username, not "(Individual)"
+    shared_key = username.strip().lower() if schedule_key.lower() == "(individual)" else schedule_key
+
     # --- Team info ---
-    if schedule_key != username.strip().lower():
-        st.info(f"🤝 You're training with team: **{schedule_key.title()}**")
+    if shared_key != username.strip().lower():
+        st.info(f"🤝 You're training with team: **{shared_key.title()}**")
 
     phase_names = [
         "Build Phase (4–6 reps)",
@@ -38,9 +43,9 @@ def show_daily_workout(username, schedule_key):
     ]
 
     # --- Load weekly schedule ---
-    if "weekly_schedule" not in st.session_state or st.session_state.get("active_user") != schedule_key:
-        st.session_state.weekly_schedule = load_user_schedule(schedule_key)
-        st.session_state.active_user = schedule_key
+    if "weekly_schedule" not in st.session_state or st.session_state.get("active_user") != shared_key:
+        st.session_state.weekly_schedule = load_user_schedule(shared_key)
+        st.session_state.active_user = shared_key
 
     # --- Helper: get or build a day plan ---
     def get_day_plan(week, day):
@@ -50,14 +55,15 @@ def show_daily_workout(username, schedule_key):
         if day in st.session_state.weekly_schedule[week]:
             return st.session_state.weekly_schedule[week][day]
 
-        base_day = get_shared_base_day(schedule_key, week, day)
+        # 🔑 USE shared_key HERE (THIS WAS THE BUG)
+        base_day = get_shared_base_day(shared_key, week, day)
         if not base_day:
             base_day = generate_base_day(week, day)
-            set_shared_base_day(schedule_key, week, day, base_day)
+            set_shared_base_day(shared_key, week, day, base_day)
 
         user_day = build_user_day_from_base(base_day, week, username)
         st.session_state.weekly_schedule[week][day] = user_day
-        save_user_schedule(schedule_key, st.session_state.weekly_schedule)
+        save_user_schedule(shared_key, st.session_state.weekly_schedule)
         return user_day
 
     # --- Selectors ---
@@ -128,10 +134,13 @@ def show_daily_workout(username, schedule_key):
     # =========================
     # 🏋️ Today's Workout (Base)
     # =========================
-    st.markdown("### 🏋️ Today's Workout (Base Plan)")
+    st.markdown("### 🏋️ Today's Workout")
 
-    for group, text in st.session_state.day_plan.items():
-        st.write(f"**{group}:** {text}")
+    if not st.session_state.day_plan:
+        st.warning("No workout generated for this day.")
+    else:
+        for group, text in st.session_state.day_plan.items():
+            st.write(f"**{group}:** {text}")
 
     # =========================
     # ➕ Add Exercise
