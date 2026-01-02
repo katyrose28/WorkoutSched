@@ -67,7 +67,7 @@ back_combo = [
     ("Renegade Row", 10),
     ("Dead Row", 80),
     ("Inverted Row (like a pullup)", 0),
-    ("Farmer Walke", 40)
+    ("Farmer's Walk", 40)
 ]
 
 abs_upper = [
